@@ -1,0 +1,9 @@
+/router-monitoring
+/dist/
+.env
+profiles.json
+state*.json
+aliases.json
+restart.log
+.playwright-mcp/
+.DS_Store

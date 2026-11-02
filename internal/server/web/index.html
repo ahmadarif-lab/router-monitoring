@@ -1,0 +1,949 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#080d1c">
+<title>Router Monitor</title>
+<style>
+:root{
+  --bg:#080d1c;--bg2:#0d1530;--card:rgba(255,255,255,.04);--card2:rgba(255,255,255,.06);--line:rgba(255,255,255,.09);
+  --fg:#eef1fa;--mut:#8f9ab5;--acc:#4c7dff;--acc2:#8b5cf6;--ok:#22c55e;--warn:#e0a106;--bad:#ef4444;
+  --chip:rgba(76,125,255,.16);--chipfg:#9db6ff;--shadow:0 8px 30px rgba(0,0,0,.35);--pop:#161e38;--onacc:#fff;--onacc2:#fff;
+  --hero:linear-gradient(135deg,#1c3fa6 0%,#3b3fd0 55%,#7a4be0 100%);--grid:rgba(255,255,255,.07);
+}
+*{box-sizing:border-box}
+.card{transition:border-color .15s}.card:not(.hero):hover{border-color:var(--acc)}
+input:focus,select:focus{outline:1px solid var(--acc);outline-offset:0}
+html{color-scheme:dark}
+body{margin:0;min-height:100vh;color:var(--fg);background:radial-gradient(1200px 600px at 20% -10%,var(--bg2),var(--bg));
+  font:14.5px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+.app{max-width:1440px;margin:0 auto;padding:22px 24px 40px}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.small{font-size:12px;color:var(--mut)}
+svg{display:block}
+button{font:inherit;color:inherit;cursor:pointer}
+
+/* header */
+.top{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:20px}
+.brand{display:flex;align-items:center;gap:14px}
+.logo{width:50px;height:50px;border-radius:14px;background:var(--card2);border:1px solid var(--line);display:grid;place-items:center;color:var(--acc)}
+h1{margin:0;font-size:24px;letter-spacing:-.01em}
+.top-r{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.pill{display:inline-flex;align-items:center;gap:8px;padding:6px 14px;border-radius:99px;font-weight:600;background:color-mix(in srgb,var(--ok) 15%,transparent);color:var(--ok)}
+.pill.bad{background:color-mix(in srgb,var(--bad) 15%,transparent);color:var(--bad)}.pill.wait{background:color-mix(in srgb,var(--mut) 16%,transparent);color:var(--mut)}
+.pill i{width:9px;height:9px;border-radius:50%;background:currentColor;box-shadow:0 0 0 3px color-mix(in srgb,currentColor 25%,transparent)}
+.sep{width:1px;height:26px;background:var(--line)}
+.clock{display:flex;align-items:center;gap:8px;color:var(--mut)}.clock b{color:var(--fg);font-weight:600}
+
+/* cards */
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:18px 20px;box-shadow:var(--shadow);min-width:0}
+.card h2{margin:0;font-size:17px;display:flex;align-items:center;gap:10px}
+.card h2 svg{color:var(--acc)}
+.grid-top{display:grid;grid-template-columns:1fr 1.05fr 1.7fr;gap:16px;margin-bottom:16px}
+.grid-main{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;align-items:start}
+.side{display:flex;flex-direction:column;gap:16px}
+@media(max-width:1180px){.grid-top{grid-template-columns:1fr 1fr}.grid-top .traffic{grid-column:1/-1}.grid-main{grid-template-columns:1fr}}
+@media(max-width:720px){.grid-top{grid-template-columns:1fr}.app{padding:16px 14px 32px}}
+
+/* hero */
+.hero{background:var(--hero);border-color:transparent;color:#fff;display:flex;flex-direction:column;gap:10px}
+.hero .row{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.hero h2{font-size:21px;color:#fff}.hero .small{color:rgba(255,255,255,.72)}
+.hero .pill{background:rgba(255,255,255,.18);color:#fff}.hero .pill.bad{background:rgba(239,68,68,.4)}
+.hero-body{display:flex;gap:18px;align-items:center}
+.hero svg.rt{flex:none;opacity:.95}
+.hero dl{margin:0;display:grid;gap:4px}.hero dd{margin:0}
+.hero .model{font-size:18px;font-weight:700}
+.copy{cursor:pointer;display:inline-flex;align-items:center;gap:6px}.copy:hover{color:var(--acc)}.hero .copy:hover{color:#fff;text-decoration:underline}
+.cpi{opacity:.55;vertical-align:-2px}.copy:hover .cpi{opacity:1}
+.kv{display:flex;gap:8px;align-items:center;font-size:13.5px;color:rgba(255,255,255,.85)}
+
+/* quality */
+.q-body{display:grid;grid-template-columns:1fr 1fr;margin-top:14px}
+.q{padding:4px 10px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:10px}
+.q+.q{border-left:1px solid var(--line)}
+.q .v{font-size:32px;font-weight:700;letter-spacing:-.02em;display:flex;align-items:center;gap:8px}.q .v small{font-size:15px;font-weight:500;color:var(--mut)}
+.badge{padding:3px 16px;border-radius:99px;font-weight:700;font-size:13px}
+.lv4,.lv3{--c:var(--ok)}.lv2{--c:var(--warn)}.lv1{--c:var(--bad)}.lv0{--c:var(--mut)}
+.badge{background:color-mix(in srgb,var(--c) 22%,transparent);color:var(--c)}
+.q .nm{font-size:13px;color:var(--fg);display:flex;align-items:center;gap:6px;white-space:nowrap;margin-top:2px}
+.q .small{margin-top:-6px}.nw{white-space:nowrap}
+.bars{display:inline-flex;align-items:flex-end;gap:2px;height:14px;vertical-align:-2px}
+.bars i{display:block;width:4px;border-radius:1px;background:var(--grid)}
+.bars i:nth-child(1){height:4px}.bars i:nth-child(2){height:7px}.bars i:nth-child(3){height:10px}.bars i:nth-child(4){height:14px}
+.bars.lv4 i,.bars.lv3 i:nth-child(-n+3),.bars.lv2 i:nth-child(-n+2),.bars.lv1 i:nth-child(1){background:var(--c)}
+
+/* traffic */
+.t-head{display:flex;justify-content:space-between;align-items:center;gap:10px}
+select{background:var(--card2);color:var(--fg);border:1px solid var(--line);border-radius:10px;padding:6px 10px;font:inherit}
+.t-body{display:grid;grid-template-columns:1fr 150px;gap:14px;margin-top:10px}
+@media(max-width:720px){.t-body{grid-template-columns:1fr}}
+.chart{position:relative;min-height:150px}
+.chart svg{width:100%;height:auto}
+.tip{position:absolute;pointer-events:none;background:var(--pop);color:var(--fg);border:1px solid var(--line);box-shadow:0 4px 14px rgba(0,0,0,.25);padding:6px 9px;border-radius:8px;font-size:12px;white-space:nowrap;transform:translate(-50%,-110%);display:none;z-index:2}
+.rates{display:flex;flex-direction:column;gap:10px}
+.rate{background:var(--card2);border:1px solid var(--line);border-radius:14px;padding:10px;display:flex;gap:8px;align-items:center}
+.rate .ic{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;color:#fff;flex:none}
+.rate .n{font-size:12px;color:var(--mut)}.rate .x{font-size:20px;font-weight:700;line-height:1.15;white-space:nowrap}.rate .x small{font-size:12px;font-weight:600}
+.nodata{position:absolute;inset:0;display:grid;place-items:center;color:var(--mut);font-size:13px;text-align:center;padding:0 20px}
+
+/* devices */
+.d-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.chipb{padding:7px 14px;border-radius:99px;border:1px solid var(--line);background:var(--card2);color:var(--fg);font-weight:600;font-size:13px}
+.chipb.on{background:var(--acc);border-color:var(--acc);color:var(--onacc)}
+.search{display:flex;align-items:center;gap:8px;border:1px solid var(--line);background:var(--card2);border-radius:99px;padding:0 14px;min-width:220px}
+.search input{background:none;border:0;outline:0;color:var(--fg);font:inherit;padding:8px 0;width:100%}
+.tw{overflow-x:auto;border:1px solid var(--line);border-radius:14px}
+table{width:100%;border-collapse:collapse;min-width:840px}
+th{font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--mut);text-align:left;padding:12px 10px;font-weight:600;background:var(--card2)}
+td{padding:10px;border-top:1px solid var(--line);vertical-align:middle}
+td.nw{white-space:nowrap}
+tr.off td{opacity:.5}
+.dev{display:flex;align-items:center;gap:12px}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--mut);flex:none}.on .dot{background:var(--ok);box-shadow:0 0 0 3px color-mix(in srgb,var(--ok) 22%,transparent)}
+.dic{width:36px;height:36px;border-radius:10px;background:var(--card2);border:1px solid var(--line);display:grid;place-items:center;color:var(--mut);flex:none}
+.name{font-weight:600}
+.chip{display:inline-block;padding:2px 9px;border-radius:99px;background:var(--chip);color:var(--chipfg);font-size:12px;font-weight:600}
+.arr{color:var(--acc)}.arr.u{color:var(--acc2)}
+.kebab{position:relative;text-align:right}
+.kb{background:none;border:0;padding:4px 8px;border-radius:8px;color:var(--mut);font-size:18px;line-height:1}.kb:hover{background:var(--card2);color:var(--fg)}
+
+.menu{position:fixed;z-index:30;background:var(--pop);border:1px solid var(--line);border-radius:12px;padding:6px;min-width:170px;box-shadow:var(--shadow);text-align:left}
+.menu button{display:block;width:100%;text-align:left;background:none;border:0;padding:8px 10px;border-radius:8px}.menu button:hover{background:var(--card2)}
+.empty{padding:28px;text-align:center;color:var(--mut)}
+
+/* side */
+.qa{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px}
+.qb{background:var(--card2);border:1px solid var(--line);border-radius:14px;padding:12px 8px;display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;min-height:112px}
+.qb b{font-size:13px}.qb span{font-size:11px;color:var(--mut);line-height:1.25}
+.qb.prim{background:var(--hero);border-color:transparent;color:#fff}.qb.prim span{color:rgba(255,255,255,.8)}
+.qb:hover{filter:brightness(1.1)}.qb:disabled{opacity:.5;cursor:default}
+.sch{display:flex;justify-content:space-between;align-items:center}
+.switch{position:relative;width:46px;height:26px;border-radius:99px;background:var(--grid);border:0;padding:0;flex:none;transition:.15s}
+.switch::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:.15s}
+.switch.on{background:var(--ok)}.switch.on::after{left:23px}.switch:disabled{opacity:.4}
+.sch-row{margin-top:12px;display:flex;align-items:center;gap:12px;background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.sch-row .t{background:var(--chip);color:var(--chipfg);padding:2px 10px;border-radius:8px;font-weight:700;border:0;font:inherit;font-weight:700;cursor:pointer}
+.sch-last{margin-top:8px}
+.me{margin-left:8px;font-size:11px;font-weight:700;padding:1px 8px;border-radius:99px;background:var(--chip);color:var(--chipfg);vertical-align:middle;white-space:nowrap}
+tr.me-row td:first-child{box-shadow:inset 3px 0 0 var(--acc)}tr.me-row{background:color-mix(in srgb,var(--acc) 6%,transparent)}
+.sch-row .t{display:inline-flex;align-items:center;gap:7px;font-variant-numeric:tabular-nums}.sch-row .t:hover{filter:brightness(1.1)}.sch-row .t svg{opacity:.8}
+.tp{position:fixed;z-index:40;background:var(--pop);border:1px solid var(--line);border-radius:14px;padding:14px;box-shadow:0 12px 32px rgba(0,0,0,.35);width:288px}
+.tp h4{margin:0 0 6px;font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--mut);font-weight:600}
+.tp .g{display:grid;grid-template-columns:repeat(6,1fr);gap:4px;margin-bottom:12px}
+.tp .g button{padding:7px 0;border-radius:8px;border:1px solid transparent;background:var(--card2);color:var(--fg);font:inherit;font-variant-numeric:tabular-nums;cursor:pointer}
+.tp .g button:hover{border-color:var(--line)}.tp .g button.on{background:var(--acc);border-color:var(--acc);color:var(--onacc);font-weight:700}
+.tp .act{display:flex;align-items:center;justify-content:space-between;gap:8px}.tp .now{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums}
+.cs{position:relative;display:inline-block;max-width:100%}dialog .cs{display:block}
+.cs-native{position:absolute!important;left:0;top:0;width:100%;height:100%;opacity:0;pointer-events:none}
+.cs-btn{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;background:var(--card2);color:var(--fg);border:1px solid var(--line);border-radius:10px;padding:6px 10px 6px 12px;font:inherit;cursor:pointer;text-align:left}
+dialog .cs-btn{padding:9px 12px;font-weight:600}
+.cs-btn:hover{border-color:color-mix(in srgb,var(--fg) 28%,var(--line))}
+.cs-btn:focus-visible,.cs-btn[aria-expanded=true]{outline:none;border-color:var(--acc);box-shadow:0 0 0 1px var(--acc)}
+.cs-btn>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cs-btn svg{flex:none;opacity:.65;transition:transform .15s}.cs-btn[aria-expanded=true] svg{transform:rotate(180deg)}
+.cs-btn:disabled{opacity:.55;cursor:not-allowed}
+.cs.profsel{max-width:220px}.cs.profsel .cs-btn{font-weight:600}
+.cs-menu{position:fixed;z-index:90;background:var(--pop);border:1px solid var(--line);border-radius:12px;padding:5px;box-shadow:0 12px 32px rgba(0,0,0,.35);max-height:min(320px,60vh);overflow:auto}
+.cs-opt{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:8px 10px;border-radius:8px;cursor:pointer;white-space:nowrap}
+.cs-opt b{opacity:0;color:var(--acc);font-weight:700}.cs-opt.sel{font-weight:700}.cs-opt.sel b{opacity:1}
+.cs-opt.hi{background:var(--card2)}
+.bar{height:8px;border-radius:99px;background:var(--grid);overflow:hidden;margin-top:6px}.bar>i{display:block;height:100%;border-radius:99px;background:var(--acc)}.bar.hot>i{background:var(--warn)}
+.sysrow{margin-bottom:14px}.sysrow:last-child{margin-bottom:0}.sysrow .t{display:flex;justify-content:space-between;gap:10px;font-weight:600}.sysrow .t span:last-child{font-weight:500;color:var(--mut)}
+.banner .btn{margin-left:10px;padding:4px 12px}
+.err{color:var(--bad);font-size:13px;min-height:18px;margin:-4px 0 8px}
+.btn:disabled{opacity:.6;cursor:wait}
+.sum{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+.sm{background:var(--card2);border:1px solid var(--line);border-radius:14px;padding:12px;display:flex;gap:10px;align-items:center}
+.sm .n{font-size:24px;font-weight:700;line-height:1}.sm .l{font-size:12px;color:var(--mut);line-height:1.25;margin-top:3px}
+
+/* misc */
+.banner{margin-bottom:14px;padding:12px 16px;border-radius:12px;background:color-mix(in srgb,var(--warn) 15%,transparent);color:var(--warn);border:1px solid color-mix(in srgb,var(--warn) 38%,transparent)}
+.banner.bad{background:color-mix(in srgb,var(--bad) 13%,transparent);color:var(--bad);border-color:color-mix(in srgb,var(--bad) 38%,transparent)}
+dialog{border:1px solid var(--line);border-radius:16px;background:var(--pop);color:var(--fg);padding:22px;max-width:420px;width:calc(100% - 32px);box-shadow:var(--shadow)}
+dialog::backdrop{background:rgba(0,0,0,.55)}
+dialog h3{margin:0 0 8px;font-size:18px}dialog p{margin:0 0 16px;color:var(--mut)}
+dialog label{display:grid;gap:6px;margin-bottom:12px;font-weight:600;font-size:13px}
+dialog input[type=text],dialog input[type=password],dialog input[type=url]{background:var(--card2);color:var(--fg);border:1px solid var(--line);border-radius:10px;padding:9px 12px;font:inherit;width:100%}
+.dlg-act{display:flex;justify-content:flex-end;gap:10px;margin-top:6px}
+.btn{padding:8px 16px;border-radius:10px;border:1px solid var(--line);background:var(--card2);font-weight:600}
+.btn.pri{background:var(--acc);border-color:var(--acc);color:var(--onacc)}.btn.dan{background:var(--bad);border-color:var(--bad);color:#fff}
+#toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);background:var(--fg);color:var(--bg);padding:9px 16px;border-radius:10px;font-size:13px;opacity:0;pointer-events:none;transition:.2s;z-index:50}
+#toast.show{opacity:1;transform:translateX(-50%)}
+</style>
+<script>
+/* Themes. Dark: 10 colors (bg, surface, surface-raised, border, accent, text, muted, online, warning, offline).
+   Light: 12 colors (bg, sidebar, field, border, text, muted, hover, selected, accent, green, blue, red), palette from the post-ronda editor. */
+const THEMES={
+dark:[  // bg, surface, surface-raised, border, accent, text-primary, text-secondary, online, warning, offline
+  ["Graphite Mint","#111312,#1C201E,#282D2A,#353C37,#7DC9A3,#E7ECE8,#98A49B,#6FCF97,#E5B567,#E07878"],
+  ["Obsidian Amber","#141413,#20201E,#2C2B27,#3A3934,#E5B567,#ECEAE4,#AAA79F,#6FCF97,#E5B567,#E07878"],
+  ["Slate Copper","#161819,#222627,#303536,#414748,#D69B7B,#E8E9E6,#A1A9A8,#6FCF97,#E5B567,#E07878"],
+  ["Nordic Teal","#121819,#1B2526,#293435,#39494A,#76BDB2,#E4EEEB,#9AADA9,#6FCF97,#E5B567,#E07878"],
+  ["Charcoal Mono","#151515,#222222,#303030,#414141,#D1D5DB,#F0F0F0,#A3A3A3,#6FCF97,#E5B567,#E07878"]
+],
+light:[
+  ["Classic","#ffffff#eef1f7#f3f5fb#e1e6f0#1a2235#667189#f3f5fb#e8eeff#4c7dff#16a34a#8b5cf6#dc2626"],
+  ["Light","#ffffff#f8f8f8#f4f4f4#e4e4e4#343434#808080#f1f1f1#eaeaea#c07f1e#268b4f#2b7eb9#c74a3a"],
+  ["Catppuccin Latte","#eff1f5#e6e9ef#dce0e8#ccd0da#4c4f69#6c6f85#e6e9ef#dce0e8#8839ef#40a02b#1e66f5#d20f39"],
+  ["Solarized Light","#fdf6e3#eee8d5#f5eedb#ddd6c1#586e75#839496#f3ecd7#eee8d5#b58900#859900#268bd2#dc322f"],
+  ["GitHub Light","#ffffff#f6f8fa#f6f8fa#d0d7de#24292f#57606a#f3f4f6#eaeef2#0969da#1a7f37#0969da#cf222e"],
+  ["Nord Light","#eceff4#e5e9f0#e5e9f0#d8dee9#2e3440#5f697d#e5e9f0#d8dee9#b76e54#649155#5e81ac#bf616a"]
+]};
+const ls={get(k,d){try{return localStorage.getItem(k)??d}catch(e){return d}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
+const rgb=h=>[1,3,5].map(i=>parseInt(h.slice(i,i+2),16)),hex=c=>'#'+c.map(v=>Math.round(Math.max(0,Math.min(255,v))).toString(16).padStart(2,'0')).join('');
+const mix=(a,b,t)=>a.map((v,i)=>v+(b[i]-v)*t),shade=(c,f)=>c.map(v=>v*f),lum=c=>(.299*c[0]+.587*c[1]+.114*c[2])/255,dist=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1],a[2]-b[2]);
+function themeVars(spec,dark){
+  const a=hex,m=x=>rgb(x);
+  let V;
+  if(spec.includes(',')){   // flat 10-color format (dark themes): card = surface, inner elements = surface-raised
+    const [bg,sf,rs,bd,ac,tx,mu,ok,wn,bad]=spec.split(',').map(m);
+    const acc2=[wn,ok,bad].find(c=>dist(ac,c)>90)||ok;       // second chart color: the first status color that differs enough from the accent
+    V={'--bg':a(bg),'--bg2':a(bg),'--card':a(sf),'--card2':a(rs),'--line':a(bd),'--fg':a(tx),'--mut':a(mu),
+      '--acc':a(ac),'--acc2':a(acc2),'--ok':a(ok),'--bad':a(bad),'--warn':a(wn),'--pop':a(rs),'--grid':a(bd),
+      '--chip':`rgba(${ac.map(Math.round)},.16)`,'--chipfg':a(ac),'--shadow':'none',
+      '--hero':`linear-gradient(135deg,${a(shade(ac,.5))} 0%,${a(mix(rs,shade(ac,.4),.5))} 100%)`,
+      '--onacc':lum(ac)>.6?a(bg):'#fff','--onacc2':lum(acc2)>.6?a(bg):'#fff'};
+  }else{                    // 12-color format (light themes)
+    const [bg,sb,fi,bd,tx,mu,,,ac,gr,bl,rd]=spec.slice(1).split('#').map(x=>m('#'+x));
+    const acc2=dist(ac,bl)<90?gr:bl;
+    const card=dark?fi:bg,page=dark?bg:sb,spot=dark?sb:bg,card2=mix(card,tx,dark?.07:.045);
+    V={'--bg':a(page),'--bg2':a(spot),'--card':a(card),'--card2':a(card2),'--line':a(bd),'--fg':a(tx),'--mut':a(mu),
+      '--acc':a(ac),'--acc2':a(acc2),'--ok':a(gr),'--bad':a(rd),'--warn':dark?'#e0a106':'#b7791f',
+      '--chip':`rgba(${ac.map(Math.round)},${dark?.16:.12})`,'--chipfg':a(ac),'--pop':a(card),'--grid':a(bd),
+      '--shadow':dark?'0 8px 30px rgba(0,0,0,.35)':'0 4px 18px rgba(30,40,70,.10)',
+      '--hero':`linear-gradient(135deg,${a(shade(ac,.5))} 0%,${a(shade(mix(ac,bl,.5),.5))} 55%,${a(shade(bl,.5))} 100%)`,
+      '--onacc':lum(ac)>.6?'#1b1b1b':'#fff','--onacc2':lum(acc2)>.6?'#1b1b1b':'#fff'};
+  }
+  return V;
+}
+function applyTheme(){
+  const mode=ls.get('theme','auto');
+  const dark=mode==='auto'?matchMedia('(prefers-color-scheme:dark)').matches:mode==='dark';
+  const list=THEMES[dark?'dark':'light'],name=ls.get(dark?'themeDark':'themeLight',list[0][0]);
+  const spec=(list.find(t=>t[0]===name)||list[0])[1],r=document.documentElement;
+  const v=themeVars(spec,dark);for(const k in v)r.style.setProperty(k,v[k]);
+  r.style.colorScheme=dark?'dark':'light';r.dataset.theme=dark?'dark':'light';
+  const m=document.querySelector('meta[name=theme-color]');if(m)m.content=v['--bg'];
+}
+applyTheme();
+try{matchMedia('(prefers-color-scheme:dark)').addEventListener('change',()=>{if(ls.get('theme','auto')==='auto'){applyTheme();window.drawChart&&drawChart()}})}catch(e){}
+</script>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="brand">
+      <div class="logo"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 8V4M17 8V4"/><rect x="3" y="11" width="18" height="8" rx="2"/><path d="M7 15h.01M11 15h.01"/><path d="M12 2v0"/></svg></div>
+      <div><h1 data-i18n="app.title">Router Monitor</h1><div class="small" data-i18n="app.sub">Home router monitoring</div></div>
+    </div>
+    <div class="top-r">
+      <select id="profSel" class="profsel" aria-label="Router" hidden></select>
+      <span class="pill wait" id="pill"><i></i><span id="pillT">Loading…</span></span>
+      <span class="small" id="devCount" style="font-size:14px"></span>
+      <span class="sep"></span>
+      <span class="clock"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg><span id="date"></span><b id="time"></b></span>
+    </div>
+  </header>
+
+  <div id="banner"></div>
+
+  <section class="grid-top">
+    <div class="card hero">
+      <div class="row">
+        <div><h2 id="heroName">Router</h2><div class="small" id="heroType"></div></div>
+        <span class="pill" id="heroPill"><i></i><span>—</span></span>
+      </div>
+      <div class="hero-body">
+        <svg class="rt" width="96" height="86" viewBox="0 0 96 86" fill="none"><path d="M26 44 20 8M70 44l6-36" stroke="#fff" stroke-width="5" stroke-linecap="round"/><rect x="6" y="44" width="84" height="26" rx="8" fill="#fff"/><rect x="6" y="62" width="84" height="8" rx="4" fill="#cfd6ee"/><circle cx="24" cy="56" r="2.5" fill="var(--acc)"/><circle cx="34" cy="56" r="2.5" fill="var(--acc)"/><circle cx="44" cy="56" r="2.5" fill="#cfd6ee"/></svg>
+        <dl>
+          <dd class="model" id="model">—</dd>
+          <dd class="kv"><span class="mono copy" id="rIp" title="Click to copy" data-i18n-attr="title:copy.tip"></span></dd>
+          <dd class="kv" id="rWan"></dd>
+          <dd class="kv" id="rMe"></dd>
+          <dd class="kv"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span data-i18n="hero.uptime">Uptime</span> <b id="rUp">—</b></dd>
+        </dl>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9a15 15 0 0 1 20 0M5.5 12.5a10 10 0 0 1 13 0M9 16a5 5 0 0 1 6 0"/><circle cx="12" cy="19.5" r="1" fill="currentColor"/></svg><span id="qTitle">Connection Quality</span></h2>
+      <div class="q-body" id="quality"></div>
+    </div>
+
+    <div class="card traffic">
+      <div class="t-head">
+        <h2><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4v14M3 14l4 4 4-4M17 20V6M13 10l4-4 4 4"/></svg><span data-i18n="tr.title">Internet Traffic (ISP)</span></h2>
+        <select id="range"></select>
+      </div>
+      <div class="t-body">
+        <div class="chart" id="chart"></div>
+        <div class="rates">
+          <div class="rate"><span class="ic" style="background:var(--acc);color:var(--onacc)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M6 13l6 6 6-6"/></svg></span><div><div class="n" data-i18n="tr.down">Download</div><div class="x" id="rDown">—</div></div></div>
+          <div class="rate"><span class="ic" style="background:var(--acc2);color:var(--onacc2)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M6 11l6-6 6 6"/></svg></span><div><div class="n" data-i18n="tr.up">Upload</div><div class="x" id="rUp2">—</div></div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="grid-main">
+    <div class="card">
+      <div class="d-head">
+        <h2><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="11" rx="1.5"/><path d="M2 19h20"/></svg><span id="dTitle">Connected Devices</span></h2>
+        <div class="filters" id="filters"></div>
+      </div>
+      <div class="tw"><table>
+        <thead><tr id="thr"></tr></thead>
+        <tbody id="rows"></tbody>
+      </table><div id="msg"></div></div>
+    </div>
+
+    <aside class="side">
+      <div class="card">
+        <h2><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg><span data-i18n="qa.title">Quick Actions</span></h2>
+        <div class="qa">
+          <button class="qb prim" id="bRestart"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg><b data-i18n="qa.restart">Restart Router</b><span data-i18n="qa.restartSub">Reboot the ISP router</span></button>
+          <button class="qb" id="bRefresh"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-15.5 6.2M3 12A9 9 0 0 1 18.5 5.8"/><path d="M18 2v4h-4M6 22v-4h4"/></svg><b data-i18n="qa.refresh">Refresh Data</b><span data-i18n="qa.refreshSub">Update status &amp; devices</span></button>
+          <button class="qb" id="bSettings"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><b data-i18n="qa.settings">Settings</b><span data-i18n="qa.settingsSub">Appearance &amp; refresh interval</span></button>
+        </div>
+      </div>
+
+      <div class="card" id="schCard">
+        <div class="sch"><h2><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg><span data-i18n="sch.title">Scheduled Restart</span></h2><button class="switch" id="schSw" aria-label="Turn scheduled restart on" data-i18n-attr="aria-label:sch.aria"></button></div>
+        <div class="sch-row"><span data-i18n="sch.every">Every day at</span><button type="button" class="t" id="schTime" data-value="03:00" aria-haspopup="dialog" aria-label="Restart time" data-i18n-attr="aria-label:sch.timeAria"><span id="schTimeT">03:00</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></button></div>
+        <div class="small sch-last" id="schLast"></div>
+      </div>
+
+      <div class="card">
+        <h2><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/></svg><span data-i18n="sum.title">Summary</span></h2>
+        <div class="sum">
+          <div class="sm"><span style="color:var(--ok)"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="11" rx="1.5"/><path d="M2 19h20"/></svg></span><div><div class="n" id="sOn">—</div><div class="l" data-i18n="sum.online">Devices Online</div></div></div>
+          <div class="sm"><span style="color:var(--ok)"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M2 9a15 15 0 0 1 20 0M5.5 12.5a10 10 0 0 1 13 0M9 16a5 5 0 0 1 6 0"/><circle cx="12" cy="19.5" r="1" fill="currentColor"/></svg></span><div><div class="n" id="sSsid">—</div><div class="l" id="sSsidL">Active SSIDs</div></div></div>
+        </div>
+      </div>
+      <div class="card" id="sysCard" hidden>
+        <h2><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/></svg><span data-i18n="sys.title">System</span></h2>
+        <div id="sysBody"></div>
+      </div>
+    </aside>
+  </section>
+</div>
+
+<dialog id="dRestart"><h3 data-i18n="rs.title">Restart the router?</h3><p data-i18n="rs.body">The internet will be down for a few minutes for every device on the network. This page waits until the router is back online.</p><div class="dlg-act"><button class="btn" value="x" data-close data-i18n="b.cancel">Cancel</button><button class="btn dan" id="goRestart" data-i18n="rs.go">Restart now</button></div></dialog>
+<dialog id="dSettings"><h3 data-i18n="set.title">Settings</h3>
+  <label><span data-i18n="set.lang">Language</span><select id="setLang"></select></label>
+  <label><span data-i18n="set.interval">Refresh interval</span><select id="setRefresh"></select></label>
+  <label><span data-i18n="set.mode">Mode</span><select id="setTheme"></select></label>
+  <label><span data-i18n="set.dark">Dark theme</span><select id="setDark"></select></label>
+  <label><span data-i18n="set.light">Light theme</span><select id="setLight"></select></label>
+  <label><span data-i18n="set.pause">Pause data collection</span><select id="setPause"></select></label>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px"><button class="btn" id="bEditRouter" data-i18n="set.editRouter">Edit this router…</button><button class="btn" id="bAddRouter" data-i18n="set.addRouter">Add another router…</button></div>
+  <p class="small" style="margin:0 0 8px" data-i18n="set.pauseHint">Some routers (like the Biznet/Huawei ONT) accept only 1 admin session. Pause first before opening the router's own web UI so the two do not kick each other out.</p>
+  <p class="small" style="margin:6px 0 0" data-i18n="set.aliasHint">Device names can be changed from the ⋮ menu on each row. They are stored in aliases.json.</p>
+  <div class="dlg-act"><button class="btn pri" data-close data-i18n="b.done">Done</button></div></dialog>
+<dialog id="dSetup"><h3 id="suTitle">Connect your router</h3>
+  <p id="suHint" data-i18n="su.hint">Pick your router type and enter its address and admin login. The login is tested first, then stored only on this computer.</p>
+  <label><span data-i18n="su.type">Router type</span><select id="suType"></select></label>
+  <label><span data-i18n="su.name">Name</span><input type="text" id="suName" maxlength="40" placeholder="e.g. Home, Office" data-i18n-attr="placeholder:su.namePh" autocomplete="off"></label>
+  <label><span data-i18n="su.url">Router address</span><input type="url" id="suUrl" placeholder="http://192.168.1.1" autocomplete="off" spellcheck="false"></label>
+  <label><span data-i18n="su.user">Username</span><input type="text" id="suUser" autocomplete="username" spellcheck="false"></label>
+  <label><span data-i18n="su.pass">Password</span><input type="password" id="suPass" autocomplete="current-password"></label>
+  <div class="err" id="suErr"></div>
+  <div class="dlg-act"><button class="btn dan" id="suDel" hidden style="margin-right:auto" data-i18n="su.delete">Delete</button><button class="btn" id="suCancel" data-close data-i18n="b.cancel">Cancel</button><button class="btn pri" id="suSave" data-i18n="su.save">Test &amp; save</button></div></dialog>
+<dialog id="dAlias"><h3 data-i18n="al.title">Name this device</h3><p class="small mono" id="aMac" style="margin-bottom:12px"></p>
+  <label><span data-i18n="al.name">Name</span><input type="text" id="aName" maxlength="60" placeholder="e.g. Mom's phone (leave empty to remove)" data-i18n-attr="placeholder:al.ph"></label>
+  <div class="dlg-act"><button class="btn" data-close data-i18n="b.cancel">Cancel</button><button class="btn pri" id="aSave" data-i18n="b.save">Save</button></div></dialog>
+<div class="menu" id="menu" hidden></div>
+<div class="tp" id="tp" role="dialog" hidden></div>
+<div id="toast"></div>
+
+<script>
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const store={get(k,d){try{return localStorage.getItem(k)??d}catch(e){return d}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
+
+/* ---------- i18n: English is the default; add a language by adding one object to I18N ---------- */
+const LANGS={en:'English',id:'Bahasa Indonesia'};
+const LOCALE={en:undefined,id:'id-ID'};   // undefined = the browser's own locale
+const I18N={
+en:{
+ 'app.title':'Router Monitor','app.sub':"Home router monitoring",
+ 'st.loading':'Loading…','st.online':'Online','st.offline':'Offline','st.restarting':'Restarting…','st.unknown':'Unknown',
+ 'n.connected':'{n} devices connected','n.connected_one':'1 device connected',
+ 'hero.title':"Router",'hero.uptime':'Uptime','hero.wanIp':'WAN IP','copy.tip':'Click to copy',
+ 'q.title':'Connection Quality','q.devices':'{n} devices','q.devices_one':'1 device','q.avgTip':'Average signal of {n} devices','q.avgTip_one':'Signal of 1 device',
+ 'lv.1':'Weak','lv.2':'Fair','lv.3':'Good','lv.4':'Excellent',
+ 'tr.title':'Internet Traffic (ISP)','tr.range':'{n} min','tr.down':'Download','tr.up':'Upload',
+ 'tr.nodata':'Collecting data… the chart fills in by itself in the background (a sample every ~4–10 seconds).',
+ 'dev.title':'Connected Devices ({n})','th.device':'Device','th.ip':'IP','th.conn':'Connection','th.signal':'Signal','th.speed':'Link speed','th.type':'Type',
+ 'f.all':'All ({n})','f.24':'2.4 GHz ({n})','f.5':'5 GHz ({n})','f.off':'Offline ({n})','search.ph':'Search name, IP or MAC…',
+ 'dev.none':'No devices.','dev.noname':'(unnamed)','dev.static':'Static IP','dev.wired':'wired','dev.up':'connected {d}',
+ 'conn.wired':'Wired {port}','type.randommac':'Phone (random MAC)','menu.aria':'Menu',
+ 'm.copyIp':'Copy IP','m.copyMac':'Copy MAC','m.name':'Set name…',
+ 'toast.copied':'Copied','toast.copyFail':'Could not copy','toast.ipCopied':'IP copied','toast.macCopied':'MAC copied','toast.nameSaved':'Name saved',
+ 'toast.fail':'Failed: {err}','toast.refreshing':'Updating…','toast.refreshed':'Data updated',
+ 'toast.restarting':'Sending restart command…','toast.restartSent':'Restart command sent',
+ 'toast.paused':'Paused for {n} minutes','toast.resumed':'Collection resumed','toast.connected':'Router connected',
+ 'toast.schOn':'The router will restart every day at {time}','toast.schOff':'Scheduled restart turned off',
+ 'al.title':'Name this device','al.name':'Name','al.ph':"e.g. Mom's phone (leave empty to remove)",
+ 'qa.title':'Quick Actions','qa.restart':'Restart Router','qa.restartSub':'Reboot the ISP router',
+ 'qa.refresh':'Refresh Data','qa.refreshSub':'Update status & devices','qa.settings':'Settings','qa.settingsSub':'Appearance & refresh interval',
+ 'sch.title':'Scheduled Restart','sch.every':'Every day at','sch.aria':'Turn scheduled restart on','sch.timeAria':'Restart time',
+ 'sch.never':'Never run yet.','sch.off':'Off. Turn the switch on to restart automatically.','sch.last':'Last: {when} ({src}), {body}',
+ 'src.manual':'manual','src.schedule':'scheduled',
+ 'res.ok':'succeeded, router back online after {secs}s','res.failed':'failed: {error}',
+ 'res.unconfirmed':'reboot not confirmed (the router stayed up)','res.offline':'the router did not come back online',
+ 'sum.title':'Summary','sum.online':'Devices Online','sum.ssid':'Active SSIDs',
+ 'bn.restart':'The router is restarting (~{n} min). This page recovers by itself when the router is back online.',
+ 'bn.paused':'Data collection is paused for ~{n} min. Open Settings → Pause data collection → Resume now to turn it back on.',
+ 'bn.error':'Update failed: {err}. Showing the last data.',
+ 'rs.title':"Restart the router?",'rs.body':"The internet will be down for a few minutes for every device on the network. This page waits until the router is back online.",'rs.go':'Restart now',
+ 'b.cancel':'Cancel','b.save':'Save','b.done':'Done',
+ 'set.title':'Settings','set.lang':'Language','set.interval':'Refresh interval','sec':'{n} sec','set.mode':'Mode',
+ 'mode.auto':'Automatic (follow system)','mode.dark':'Dark','mode.light':'Light','set.dark':'Dark theme','set.light':'Light theme',
+ 'set.pause':'Pause data collection','pause.pick':'Choose a duration…','pause.n':'{n} minutes','pause.resume':'Resume now',
+ 'set.pauseHint':"Some routers (like the Biznet/Huawei ONT) accept only 1 admin session. Pause first before opening the router's own web UI so the two do not kick each other out.",
+ 'set.aliasHint':'Device names can be changed from the ⋮ menu on each row. They are stored in aliases.json.',
+ 'su.first':"Connect your router", 'su.hint':"Pick your router type and enter its address and admin login. The login is tested first, then stored only on this computer.",
+ 'su.url':'Router address','su.user':'Username','su.pass':'Password','su.keep':'(leave empty to keep the current one)','su.save':'Test & save','su.testing':'Testing…',
+ 'dur.dh':'{d}d {h}h','dur.hm':'{h}h {m}m','dur.m':'{m}m',
+ 'err.server':'cannot reach the server',
+ 'err.login_rejected':'Login rejected: check the username and password, or another admin session is active',
+ 'err.unreachable':'Router not reachable at {base} ({reason})',
+ 'reason.timeout':'no response, timed out','reason.refused':"connection refused, is this the router's address?",
+ 'reason.noroute':'no route to that address, check your network','reason.nohost':'host name not found',
+ 'err.not_huawei':'Login page not recognized (is this a Huawei EG8145V5?)','err.bad_time':'Time must be in HH:MM format',
+ 'err.not_configured':'Router credentials are not set yet','err.restart_busy':'A restart is already in progress',
+ 'err.bad_request':'Invalid request','err.bad_mac':'Invalid MAC address','err.creds_required':'Username and password are required',
+ 'err.url_empty':'Router address is empty','err.url_invalid':'Invalid router address (example: http://192.168.18.1)','err.save_failed':'Could not save: {detail}',
+ 'su.add':"Add a router",
+ 'su.edit':"Edit router",
+ 'su.name':"Name",
+ 'su.namePh':"e.g. Home, Office",
+ 'su.type':"Router type",
+ 'su.delete':"Delete",
+ 'su.confirmDelete':"Click again to delete",
+ 'toast.deleted':"Router removed",
+ 'set.editRouter':"Edit this router…",
+ 'set.addRouter':"Add another router…",
+ 'prof.add':"＋ Add router…",
+ 'bn.suggest':"The router of “{name}” answers on this network.",
+ 'b.switch':"Switch",
+ 'q.titleWifi':"Wi-Fi",
+ 'q.dev1':"device",
+ 'q.devN':"devices",
+ 'th.traffic':"Traffic",
+ 'dev.guest':"Guest",
+ 'sys.title':"System",
+ 'sys.usage':"CPU usage",
+ 'sys.temp':"CPU temperature",
+ 'sys.load':"Load (1/5/15 min)",
+ 'sys.mem':"Memory",
+ 'sys.flash':"Storage",
+ 'sys.used':"{used} of {total}",
+ 'err.no_profile':"Router not found",
+ 'err.bad_type':"Unknown router type",
+ 'err.name_required':"Name is required",
+ 'err.not_glinet':"This does not look like a GL.iNet router (firmware 4.x)",
+ 'err.login_limit':"Too many failed logins, wait {wait} seconds",
+ 'err.api_error':"Router error: {detail}",
+ "tp.hour":"Hour","tp.min":"Minute","tp.set":"Set",
+ "dev.me":"This device","hero.you":"Your IP"
+
+},
+id:{
+ 'app.title':'Monitor Router ISP','app.sub':"Pemantauan router di rumah",
+ 'st.loading':'Memuat…','st.online':'Online','st.offline':'Offline','st.restarting':'Restart…','st.unknown':'Tidak diketahui',
+ 'n.connected':'{n} perangkat terhubung',
+ 'hero.title':"Router",'hero.uptime':'Uptime','hero.wanIp':'IP WAN','copy.tip':'Klik untuk salin',
+ 'q.title':'Kualitas Koneksi','q.devices':'{n} perangkat','q.avgTip':'Rata-rata sinyal {n} perangkat',
+ 'lv.1':'Lemah','lv.2':'Cukup','lv.3':'Baik','lv.4':'Sangat Baik',
+ 'tr.title':'Lalu Lintas Internet (ISP)','tr.range':'{n} Menit','tr.down':'Unduh','tr.up':'Unggah',
+ 'tr.nodata':'Mengumpulkan data… grafik terisi sendiri di latar belakang (sampel tiap ±4–10 detik).',
+ 'dev.title':'Perangkat Terhubung ({n})','th.device':'Perangkat','th.ip':'IP','th.conn':'Koneksi','th.signal':'Sinyal','th.speed':'Kecepatan link','th.type':'Jenis',
+ 'f.all':'Semua ({n})','f.24':'2.4 GHz ({n})','f.5':'5 GHz ({n})','f.off':'Offline ({n})','search.ph':'Cari nama, IP, atau MAC…',
+ 'dev.none':'Tidak ada perangkat.','dev.noname':'(tanpa nama)','dev.static':'IP statis','dev.wired':'kabel','dev.up':'terhubung {d}',
+ 'conn.wired':'Kabel {port}','type.randommac':'HP (MAC acak)','menu.aria':'Menu',
+ 'm.copyIp':'Salin IP','m.copyMac':'Salin MAC','m.name':'Beri nama…',
+ 'toast.copied':'Tersalin','toast.copyFail':'Gagal menyalin','toast.ipCopied':'IP tersalin','toast.macCopied':'MAC tersalin','toast.nameSaved':'Nama disimpan',
+ 'toast.fail':'Gagal: {err}','toast.refreshing':'Memperbarui…','toast.refreshed':'Data diperbarui',
+ 'toast.restarting':'Mengirim perintah restart…','toast.restartSent':'Perintah restart dikirim',
+ 'toast.paused':'Dijeda {n} menit','toast.resumed':'Pengumpulan dilanjutkan','toast.connected':'Router terhubung',
+ 'toast.schOn':'Router akan restart tiap hari jam {time}','toast.schOff':'Restart terjadwal dimatikan',
+ 'al.title':'Beri nama perangkat','al.name':'Nama','al.ph':'mis. HP Istri (kosongkan untuk menghapus)',
+ 'qa.title':'Aksi Cepat','qa.restart':'Restart Router','qa.restartSub':'Mulai ulang router ISP',
+ 'qa.refresh':'Refresh Data','qa.refreshSub':'Perbarui status & perangkat','qa.settings':'Pengaturan','qa.settingsSub':'Tampilan & interval refresh',
+ 'sch.title':'Restart Terjadwal','sch.every':'Setiap hari jam','sch.aria':'Aktifkan restart terjadwal','sch.timeAria':'Jam restart',
+ 'sch.never':'Belum pernah dijalankan.','sch.off':'Nonaktif. Aktifkan saklar untuk restart otomatis.','sch.last':'Terakhir: {when} ({src}), {body}',
+ 'src.manual':'manual','src.schedule':'terjadwal',
+ 'res.ok':'berhasil, router online lagi setelah {secs} dtk','res.failed':'gagal: {error}',
+ 'res.unconfirmed':'reboot tidak terkonfirmasi (router tetap menyala)','res.offline':'router belum online kembali',
+ 'sum.title':'Ringkasan','sum.online':'Perangkat Online','sum.ssid':'SSID Aktif',
+ 'bn.restart':'Router sedang restart (±{n} menit). Halaman akan pulih sendiri saat router kembali online.',
+ 'bn.paused':'Pengumpulan data dijeda ±{n} menit. Buka Pengaturan → Jeda pengumpulan data → Lanjutkan sekarang untuk mengaktifkan lagi.',
+ 'bn.error':'Gagal memperbarui: {err}. Menampilkan data terakhir.',
+ 'rs.title':"Restart router?",'rs.body':"Internet akan putus beberapa menit untuk semua perangkat di jaringan. Halaman ini akan menunggu router kembali online.",'rs.go':'Restart sekarang',
+ 'b.cancel':'Batal','b.save':'Simpan','b.done':'Selesai',
+ 'set.title':'Pengaturan','set.lang':'Bahasa','set.interval':'Interval refresh','sec':'{n} detik','set.mode':'Mode',
+ 'mode.auto':'Otomatis (ikut sistem)','mode.dark':'Gelap','mode.light':'Terang','set.dark':'Tema gelap','set.light':'Tema terang',
+ 'set.pause':'Jeda pengumpulan data','pause.pick':'Pilih durasi…','pause.n':'{n} menit','pause.resume':'Lanjutkan sekarang',
+ 'set.pauseHint':"Beberapa router (seperti ONT Biznet/Huawei) hanya menerima 1 sesi admin. Jeda dulu sebelum membuka UI bawaan router supaya tidak saling menendang.",
+ 'set.aliasHint':'Nama perangkat bisa diubah lewat menu ⋮ di tiap baris. Disimpan di aliases.json.',
+ 'su.first':"Hubungkan router", 'su.hint':"Pilih jenis router lalu isi alamat dan login admin-nya. Login diuji dulu, lalu disimpan hanya di komputer ini.",
+ 'su.url':'Alamat router','su.user':'Username','su.pass':'Password','su.keep':'(kosongkan untuk tidak mengubah)','su.save':'Uji & simpan','su.testing':'Menguji…',
+ 'dur.dh':'{d} hari {h} jam','dur.hm':'{h} jam {m} mnt','dur.m':'{m} mnt',
+ 'err.server':'tidak terhubung ke server',
+ 'err.login_rejected':'Login ditolak: periksa username dan password, atau ada sesi admin lain yang sedang aktif',
+ 'err.unreachable':'Router tidak terjangkau di {base} ({reason})',
+ 'reason.timeout':'tidak merespons, timeout','reason.refused':'koneksi ditolak, benarkah ini alamat router?',
+ 'reason.noroute':'tidak ada rute ke alamat itu, cek jaringan','reason.nohost':'nama host tidak ditemukan',
+ 'err.not_huawei':'Halaman login tidak dikenali (apakah ini Huawei EG8145V5?)','err.bad_time':'Jam harus berformat HH:MM',
+ 'err.not_configured':'Login router belum diisi','err.restart_busy':'Restart sedang berjalan',
+ 'err.bad_request':'Permintaan tidak valid','err.bad_mac':'Alamat MAC tidak valid','err.creds_required':'Username dan password wajib diisi',
+ 'err.url_empty':'Alamat router kosong','err.url_invalid':'Alamat router tidak valid (contoh: http://192.168.18.1)','err.save_failed':'Gagal menyimpan: {detail}',
+ 'su.add':"Tambah router",
+ 'su.edit':"Ubah router",
+ 'su.name':"Nama",
+ 'su.namePh':"mis. Rumah, Kantor",
+ 'su.type':"Jenis router",
+ 'su.delete':"Hapus",
+ 'su.confirmDelete':"Klik lagi untuk menghapus",
+ 'toast.deleted':"Router dihapus",
+ 'set.editRouter':"Ubah router ini…",
+ 'set.addRouter':"Tambah router lain…",
+ 'prof.add':"＋ Tambah router…",
+ 'bn.suggest':"Router “{name}” terjangkau di jaringan ini.",
+ 'b.switch':"Pindah",
+ 'q.titleWifi':"Wi-Fi",
+ 'q.dev1':"perangkat",
+ 'q.devN':"perangkat",
+ 'th.traffic':"Trafik",
+ 'dev.guest':"Tamu",
+ 'sys.title':"Sistem",
+ 'sys.usage':"Pemakaian CPU",
+ 'sys.temp':"Suhu CPU",
+ 'sys.load':"Beban (1/5/15 mnt)",
+ 'sys.mem':"Memori",
+ 'sys.flash':"Penyimpanan",
+ 'sys.used':"{used} dari {total}",
+ 'err.no_profile':"Router tidak ditemukan",
+ 'err.bad_type':"Jenis router tidak dikenal",
+ 'err.name_required':"Nama wajib diisi",
+ 'err.not_glinet':"Ini tidak tampak seperti router GL.iNet (firmware 4.x)",
+ 'err.login_limit':"Terlalu banyak login gagal, tunggu {wait} detik",
+ 'err.api_error':"Kesalahan router: {detail}",
+ "tp.hour":"Jam","tp.min":"Menit","tp.set":"Atur",
+ "dev.me":"Perangkat ini","hero.you":"IP Anda"
+
+}};
+let LANG=(()=>{const l=store.get('lang','en');return I18N[l]?l:'en'})();
+/* T('key',{n:3}) with {placeholders}; TN picks 'key_one' when n===1 (English plurals). Falls back to English, then to the key. */
+function T(k,p){let s=I18N[LANG][k]??I18N.en[k]??k;return p?s.replace(/\{(\w+)\}/g,(m,x)=>p[x]??''):s}
+function TN(k,n,p){return T(n===1&&(I18N[LANG][k+'_one']??I18N.en[k+'_one'])?k+'_one':k,{n,...p})}
+/* error object from the server ({code,args,message}) or the network -> text in the current language */
+function errText(e){
+  const code=e&&e.code,a=(e&&e.args)||{};
+  if(code&&I18N.en['err.'+code]){
+    const p={...a};
+    if(code==='unreachable')p.reason=I18N.en['reason.'+a.reason]?T('reason.'+a.reason):(a.detail||'');
+    return T('err.'+code,p)}
+  return (e&&e.message)||String(e||'')}
+let S=null,filter='all',query='',refreshSec=+store.get('refresh','5'),timer,loadedAt=0,lastErr=null,menuFor=null;
+
+/* ---------- util ---------- */
+const MODE={'11b':'WiFi 1','11g':'WiFi 3','11bg':'WiFi 3','11bgn':'WiFi 4','11n':'WiFi 4','11an':'WiFi 4','11ac':'WiFi 5','11ax':'WiFi 6'};
+function lvl(r){return r==null?0:r>=-55?4:r>=-67?3:r>=-75?2:1}
+const LV=l=>l?T('lv.'+l):'—';
+function dur(s){if(s==null)return'—';const d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60);return d?T('dur.dh',{d,h}):h?T('dur.hm',{h,m}):T('dur.m',{m})}
+function dshort(s){const h=Math.floor(s/3600),m=Math.floor(s%3600/60);return h>=24?T('dur.dh',{d:Math.floor(h/24),h:h%24}):h?T('dur.hm',{h,m}):T('dur.m',{m})}
+function mbps(v){return v==null?'—':v>=100?Math.round(v):v>=10?v.toFixed(1):v.toFixed(2)}
+function toast(t){const e=$('toast');e.textContent=t;e.classList.add('show');clearTimeout(toast.t);toast.t=setTimeout(()=>e.classList.remove('show'),1600)}
+async function copyText(t){
+  try{if(navigator.clipboard&&window.isSecureContext){await navigator.clipboard.writeText(t);return true}}catch(e){}
+  const a=document.createElement('textarea');a.value=t;a.style.cssText='position:fixed;opacity:0';document.body.appendChild(a);a.select();
+  let ok=false;try{ok=document.execCommand('copy')}catch(e){}a.remove();return ok}
+async function doCopy(txt,label){toast(await copyText(txt)?`${label||T('toast.copied')}: ${txt}`:T('toast.copyFail'))}
+const CPI='<svg class="cpi" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg>';
+function post(path,body){return fetch(path,{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'rm-ui'},body:JSON.stringify(body||{})}).then(async r=>{const j=await r.json().catch(()=>({}));if(!r.ok)throw Object.assign(new Error(j.error||r.status),{code:j.code,args:j.args});return j})}
+
+/* ---------- device icons ---------- */
+const IC={
+ phone:'<rect x="7" y="2.5" width="10" height="19" rx="2.2"/><path d="M11 18.5h2"/>',
+ laptop:'<rect x="4.5" y="5" width="15" height="10.5" rx="1.5"/><path d="M2.5 19h19"/>',
+ desktop:'<rect x="3" y="4" width="18" height="12" rx="1.8"/><path d="M9 20h6M12 16v4"/>',
+ chip:'<rect x="7" y="7" width="10" height="10" rx="1.5"/><path d="M10 3v3M14 3v3M10 18v3M14 18v3M3 10h3M3 14h3M18 10h3M18 14h3"/>',
+ tv:'<rect x="3" y="5" width="18" height="12" rx="1.8"/><path d="M8 21h8"/>',
+ generic:'<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>'};
+const connLabel=d=>d.band==='lan'?T('conn.wired',{port:d.conn}):d.conn;
+const typeLabel=t=>t==='randommac'?T('type.randommac'):(t||'—');
+function kind(d){const t=(d.type||'').toLowerCase(),h=(d.host||'').toLowerCase();
+  if(/macbook|imac|mac-?mini|^mac$|laptop|notebook|thinkpad/.test(h))return'laptop';
+  if(/desktop|workstation|(^|[-_])pc$|^pc[-_]/.test(h))return'desktop';
+  if(t.startsWith('android')||t==='randommac'||/iphone|ipad/.test(h))return'phone';
+  if(t==='apple'||/macbook|air|pro/.test(h))return'laptop';
+  if(t==='windows')return'desktop';if(t.includes('iot'))return'chip';if(t.includes('tv'))return'tv';return'generic'}
+const svgI=(k,s=20)=>`<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${IC[k]}</svg>`;
+const bars=l=>`<span class="bars lv${l}"><i></i><i></i><i></i><i></i></span>`;
+
+/* ---------- render ---------- */
+function render(){
+  if(!S)return;
+  const cl=S.clients||[],on=cl.filter(d=>d.online);
+  // header
+  const wan=S.wan||{};
+  const err=lastErr||(S.error?{code:S.errorCode,args:S.errorArgs,message:S.error}:null);
+  let pc='pill',pt=T('st.online');
+  if(S.restarting>0){pc='pill wait';pt=T('st.restarting')}
+  else if(err||(S.ts&&S.now-S.ts>120)){pc='pill wait';pt=T('st.unknown')}   // router unreachable or data stale: the WAN state would mislead
+  else if(wan.online===false){pc='pill bad';pt=T('st.offline')}
+  else if(wan.online==null){pc='pill wait';pt=T('st.unknown')}
+  $('pill').className=pc;$('pillT').textContent=pt;
+  $('heroPill').className=pc;$('heroPill').lastChild.textContent=pt;
+  $('devCount').textContent=TN('n.connected',on.length);
+  // hero
+  const r=S.router||{};
+  $('heroName').textContent=(S.config&&S.config.name)||T('hero.title');
+  const ty=((S.types||[]).find(x=>x.type===(S.config&&S.config.type))||{}).label;$('heroType').textContent=ty||r.hostname||'';
+  $('model').textContent=`${r.vendor||''} ${r.model||''}`.trim()||'—';
+  $('rIp').innerHTML=`${esc(r.ip||'')}${CPI}`;$('rIp').dataset.ip=r.ip||'';
+  $('rWan').innerHTML=wan.ip?`<span class="small" style="color:rgba(255,255,255,.7)">${T('hero.wanIp')}</span> <span class="mono copy" data-ip="${esc(wan.ip)}" title="${esc(T('copy.tip'))}">${esc(wan.ip)}${CPI}</span>`:'';
+  const me=cl.find(d=>d.self&&d.online&&d.ip);
+  $('rMe').innerHTML=me?`<span class="small" style="color:rgba(255,255,255,.7)">${T('hero.you')}</span> <span class="mono copy" data-ip="${esc(me.ip)}" title="${esc(T('copy.tip'))}">${esc(me.ip)}${CPI}</span>`:'';
+  tickUptime();
+  // quality: Wi-Fi signal per band when the router reports it, else the number of devices per band
+  const hasSig=cl.some(d=>d.signal&&d.signal.rssi!=null);
+  $('qTitle').textContent=T(hasSig?'q.title':'q.titleWifi');
+  const bands={'2.4':{},'5':{}};
+  for(const b of ['2.4','5']){
+    const xs=on.filter(d=>d.band===b&&d.signal&&d.signal.rssi!=null);
+    bands[b]={n:on.filter(d=>d.band===b).length,avg:xs.length?Math.round(xs.reduce((a,d)=>a+d.signal.rssi,0)/xs.length):null};
+    const s=(S.ssids||[]).find(x=>!x.guest&&x.band.startsWith(b==='5'?'5':'2.4'));bands[b].ssid=s?s.ssid:'';
+  }
+  const wifiIc='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M2 9a15 15 0 0 1 20 0M5.5 12.5a10 10 0 0 1 13 0M9 16a5 5 0 0 1 6 0"/></svg>';
+  $('quality').innerHTML=['2.4','5'].map(b=>{const q=bands[b],l=lvl(q.avg);
+    if(!hasSig)return `<div class="q lv${q.n?4:0}"><div class="v">${q.n}<small>${T(q.n===1?'q.dev1':'q.devN')}</small></div>
+      <div class="nm">${wifiIc}Wi-Fi ${b} GHz</div>
+      <div class="small nw">${q.ssid?esc(q.ssid):'—'}</div></div>`;
+    return `<div class="q lv${l}"><div class="v">${bars(l)}${q.avg==null?'—':q.avg}<small>dBm</small></div>
+      <span class="badge">${LV(l)}</span>
+      <div class="nm">${wifiIc}Wi-Fi ${b} GHz</div>
+      <div class="small nw" title="${esc(TN('q.avgTip',q.n))}">${q.ssid?esc(q.ssid)+' · ':''}${TN('q.devices',q.n)}</div></div>`}).join('');
+  // traffic numbers
+  renderTraffic();
+  // devices
+  const cnt={all:on.length,'2.4':on.filter(d=>d.band==='2.4').length,'5':on.filter(d=>d.band==='5').length,off:cl.length-on.length};
+  $('dTitle').textContent=T('dev.title',{n:on.length});
+  $('filters').innerHTML=[['all',T('f.all',{n:cnt.all})],['2.4',T('f.24',{n:cnt['2.4']})],['5',T('f.5',{n:cnt['5']})],['off',T('f.off',{n:cnt.off})]]
+    .map(([k,t])=>`<button class="chipb ${filter===k?'on':''}" data-f="${k}">${t}</button>`).join('')+
+    `<label class="search"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="q" placeholder="${esc(T('search.ph'))}" value="${esc(query)}"></label>`;
+  const q=query.trim().toLowerCase();
+  const list=cl.filter(d=>(filter==='off'?!d.online:d.online&&(filter==='all'||d.band===filter))&&(!q||[d.alias,d.host,d.ip,d.mac,typeLabel(d.type),d.ssid].join(' ').toLowerCase().includes(q)));
+  COLS={signal:hasSig,link:cl.some(d=>d.signal&&d.signal.tx!=null),traffic:cl.some(d=>d.rate)};
+  $('thr').innerHTML=['th.device','th.ip','th.conn',COLS.signal&&'th.signal',COLS.link&&'th.speed',COLS.traffic&&'th.traffic','th.type'].filter(Boolean).map(k=>`<th>${esc(T(k))}</th>`).join('')+'<th></th>';
+  $('rows').innerHTML=list.map(rowHtml).join('');
+  $('msg').innerHTML=list.length?'':`<div class="empty">${T('dev.none')}</div>`;
+  // sidebar
+  $('sOn').textContent=on.length;
+  const ss=(S.ssids||[]).filter(x=>!x.guest);$('sSsid').textContent=ss.length;
+  $('sSsidL').innerHTML=`${T('sum.ssid')}<br>(${ss.map(s=>s.band.replace('GHz',' GHz')).join(' &amp; ')||'—'})`;
+  const sc=S.schedule||{};
+  $('schSw').classList.toggle('on',!!sc.enabled);
+  if(sc.time)setSchTime(sc.time);
+  $('schLast').textContent=sc.last?lastText(sc.last):(sc.enabled?T('sch.never'):T('sch.off'));
+  renderSystem();renderProfiles();
+  // banner
+  const b=$('banner');
+  if(S.restarting>0)b.innerHTML=`<div class="banner">${esc(T('bn.restart',{n:Math.ceil(S.restarting/60)}))}</div>`;
+  else if(S.paused>0)b.innerHTML=`<div class="banner">${esc(T('bn.paused',{n:Math.ceil(S.paused/60)}))}</div>`;
+  else if(err){const sg=S.suggest&&(S.profiles||[]).find(x=>x.id===S.suggest);
+    b.innerHTML=`<div class="banner bad">${esc(T('bn.error',{err:errText(err)}))}${sg?`<div style="margin-top:8px">${esc(T('bn.suggest',{name:sg.name}))}<button class="btn" data-switch="${esc(sg.id)}">${esc(T('b.switch'))}</button></div>`:''}</div>`}
+  else b.innerHTML='';
+}
+function renderTraffic(){
+  const h=S.history||[],last=h[h.length-1],fresh=last&&(S.now-last[0])<30;
+  $('rDown').innerHTML=fresh?`${mbps(last[2])} <small>Mbps</small>`:'—';
+  $('rUp2').innerHTML=fresh?`${mbps(last[1])} <small>Mbps</small>`:'—';
+  drawChart();
+}
+async function loadTraffic(){
+  if(document.hidden||!S)return;
+  try{const r=await fetch('/api/traffic');if(!r.ok)return;const j=await r.json();S.history=j.history;S.now=j.now;renderTraffic()}catch(e){}
+}
+const fmtBytes=(n,k=1000)=>{const u=['B','KB','MB','GB','TB'];let i=0;while(n>=k&&i<4){n/=k;i++}return (i>1?n.toFixed(1):Math.round(n))+' '+u[i]};
+const fmtRate=b=>{const x=b*8;return x>=1e6?mbps(x/1e6)+' Mbps':x>=1e3?Math.round(x/1e3)+' Kbps':x>0?Math.round(x)+' bps':'0'};
+let COLS={signal:true,link:true,traffic:false};
+function rowHtml(d){
+  const g=d.signal,name=d.alias||d.host||T('dev.noname'),sub=d.alias&&d.host?d.host+' · ':'';
+  const mode=d.mode?(MODE[d.mode]||d.mode):'';
+  const sig=g&&g.rssi!=null?`<span title="${LV(lvl(g.rssi))}${g.snr?' · SNR '+g.snr+' dB':''}">${bars(lvl(g.rssi))} <span style="margin-left:6px">${g.rssi} dBm</span></span>`
+    :`<span class="small">${d.band==='lan'?T('dev.wired'):'—'}</span>`;
+  const up=g&&g.uptime!=null?`<div class="small">${T('dev.up',{d:dshort(g.uptime)})}</div>`:'';
+  const spd=g&&g.tx!=null?`<span class="arr">↓</span> ${g.tx} &nbsp;<span class="arr u">↑</span> ${g.rx} <span class="small">Mbps</span>${up}`:'<span class="small">—</span>';
+  const trf=d.rate?`<span class="arr">↓</span> ${fmtRate(d.rate.down)} &nbsp;<span class="arr u">↑</span> ${fmtRate(d.rate.up)}${d.total?`<div class="small">↓ ${fmtBytes(d.total.down)} · ↑ ${fmtBytes(d.total.up)}</div>`:''}`
+    :d.total?`<span class="small">↓ ${fmtBytes(d.total.down)} · ↑ ${fmtBytes(d.total.up)}</span>`:'<span class="small">—</span>';
+  const net=[d.ssid&&esc(d.ssid),mode&&esc(mode),d.guest&&esc(T('dev.guest'))].filter(Boolean).join(' · ');
+  return `<tr class="${d.online?'on':'off'}${d.self?' me-row':''}">
+    <td><div class="dev"><span class="dot"></span><span class="dic">${svgI(kind(d))}</span><div><div class="name">${esc(name)}${d.self?`<span class="me">${esc(T('dev.me'))}</span>`:''}</div><div class="small mono">${esc(sub)}${esc(d.mac)}</div></div></div></td>
+    <td class="mono nw"><span class="copy" data-ip="${esc(d.ip)}" title="${esc(T('copy.tip'))}">${esc(d.ip||'—')}${d.ip?CPI:''}</span>${d.dhcp?'':`<div class="small">${T('dev.static')}</div>`}</td>
+    <td class="nw"><span class="chip">${esc(connLabel(d))}</span>${net?`<div class="small">${net}</div>`:''}${COLS.link?'':up}</td>
+    ${COLS.signal?`<td class="nw">${sig}</td>`:''}${COLS.link?`<td class="nw">${spd}</td>`:''}${COLS.traffic?`<td class="nw">${trf}</td>`:''}<td class="nw">${esc(typeLabel(d.type))}</td>
+    <td class="kebab"><button class="kb" data-menu="${esc(d.mac)}" aria-label="${esc(T('menu.aria'))}">⋮</button></td></tr>`}
+function renderSystem(){
+  const y=S.system,card=$('sysCard');card.hidden=!y;if(!y)return;
+  const bar=(pct,label,right)=>`<div class="sysrow"><div class="t"><span>${esc(label)}</span><span>${esc(right)}</span></div><div class="bar${pct>85?' hot':''}"><i style="width:${Math.max(0,Math.min(100,pct))}%"></i></div></div>`;
+  const row=(label,right)=>`<div class="sysrow"><div class="t"><span>${esc(label)}</span><span>${esc(right)}</span></div></div>`;
+  let h='';
+  if(y.cpuPct!=null)h+=bar(y.cpuPct,T('sys.usage'),Math.round(y.cpuPct)+'%');
+  if(y.cpuTemp!=null)h+=row(T('sys.temp'),Math.round(y.cpuTemp)+' °C');
+  if(y.load&&y.load.length)h+=row(T('sys.load'),y.load.map(v=>v.toFixed(2)).join(' / '));
+  if(y.memTotal){const used=Math.max(0,y.memTotal-y.memFree-(y.memCache||0)),pct=used/y.memTotal*100;
+    h+=bar(pct,T('sys.mem'),T('sys.used',{used:fmtBytes(used,1024),total:fmtBytes(y.memTotal,1024)})+' · '+Math.round(pct)+'%')}
+  if(y.flashTotal){const used=y.flashTotal-y.flashFree,pct=used/y.flashTotal*100;
+    h+=bar(pct,T('sys.flash'),T('sys.used',{used:fmtBytes(used,1024),total:fmtBytes(y.flashTotal,1024)})+' · '+Math.round(pct)+'%')}
+  $('sysBody').innerHTML=h}
+let profSig='';
+function renderProfiles(){
+  const ps=S.profiles||[],sel=$('profSel'),sig=JSON.stringify([ps.map(p=>[p.id,p.name]),LANG]);
+  sel.hidden=!ps.length;
+  if(sig!==profSig){profSig=sig;sel.innerHTML=ps.map(p=>`<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('')+`<option value="__add">${esc(T('prof.add'))}</option>`}
+  if(document.activeElement!==sel)sel.value=S.active||''}
+function hideMenu(){menuFor=null;$('menu').hidden=true}
+function showMenu(mac,btn){
+  const m=$('menu');menuFor=mac;
+  m.innerHTML=`<button data-act="ip" data-mac="${esc(mac)}">${T('m.copyIp')}</button><button data-act="mac" data-mac="${esc(mac)}">${T('m.copyMac')}</button><button data-act="alias" data-mac="${esc(mac)}">${T('m.name')}</button>`;
+  m.hidden=false;const r=btn.getBoundingClientRect(),w=m.offsetWidth,h=m.offsetHeight;
+  m.style.left=Math.max(8,Math.min(innerWidth-w-8,r.right-w))+'px';
+  m.style.top=(r.bottom+4+h>innerHeight?Math.max(8,r.top-h-4):r.bottom+4)+'px'}
+addEventListener('scroll',hideMenu,true);addEventListener('resize',hideMenu);
+document.addEventListener('keydown',e=>{if(e.key==='Escape')hideMenu()});
+function tickUptime(){if(!S||!S.router||S.router.uptime==null){$('rUp').textContent='—';return}$('rUp').textContent=dur(S.router.uptime+Math.max(0,Math.floor(Date.now()/1000)-(S.ts||0)))}
+
+/* ---------- chart ---------- */
+function niceMax(v){for(const s of [15,30,60,90,150,300,450,600,900,1500,3000])if(v<=s)return s;return Math.ceil(v/1000)*1000}
+let chartPts=null;
+function drawChart(){
+  const el=$('chart'),range=+$('range').value*60,h=S.history||[],now=S.now||Math.floor(Date.now()/1000);
+  const W=560,H=190,L=70,R=8,PT=10,B=24,pw=W-L-R,ph=H-PT-B,t0=now-range;
+  const pts=h.filter(p=>p[0]>=t0);chartPts={pts,t0,range,L,pw,W};
+  const max=niceMax(Math.max(5,...pts.map(p=>Math.max(p[1],p[2])))*1.08);
+  const x=t=>L+(t-t0)/range*pw,y=v=>PT+ph-v/max*ph;
+  let g='';
+  for(let i=0;i<=3;i++){const v=max*i/3,yy=y(v);g+=`<line x1="${L}" x2="${W-R}" y1="${yy}" y2="${yy}" stroke="var(--grid)"/><text x="${L-8}" y="${yy+4}" text-anchor="end" font-size="11" fill="var(--mut)">${Math.round(v)}${i==3?' Mbps':''}</text>`}
+  for(const f of [0,.5,1]){const t=t0+range*f;const d=new Date(t*1000);g+=`<text x="${L+pw*f}" y="${H-6}" text-anchor="${f==0?'start':f==1?'end':'middle'}" font-size="11" fill="var(--mut)">${d.toLocaleTimeString(LOCALE[LANG],{hour:'2-digit',minute:'2-digit',hour12:false})}</text>`}
+  const series=(idx,col,id)=>{
+    let segs=[],cur=[];
+    for(let i=0;i<pts.length;i++){if(cur.length&&pts[i][0]-pts[i-1][0]>60){segs.push(cur);cur=[]}cur.push(pts[i])}
+    if(cur.length)segs.push(cur);
+    return segs.map(s=>{
+      const line=s.map((p,i)=>`${i?'L':'M'}${x(p[0]).toFixed(1)},${y(p[idx]).toFixed(1)}`).join('');
+      if(s.length<2)return `<circle cx="${x(s[0][0])}" cy="${y(s[0][idx])}" r="2.5" fill="${col}"/>`;
+      const area=`${line}L${x(s[s.length-1][0]).toFixed(1)},${y(0)}L${x(s[0][0]).toFixed(1)},${y(0)}Z`;
+      return `<path d="${area}" fill="url(#${id})"/><path d="${line}" fill="none" stroke="${col}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`}).join('')};
+  el.innerHTML=`<svg viewBox="0 0 ${W} ${H}" id="csvg"><defs>
+    <linearGradient id="gd" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="var(--acc)" stop-opacity=".45"/><stop offset="1" stop-color="var(--acc)" stop-opacity="0"/></linearGradient>
+    <linearGradient id="gu" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="var(--acc2)" stop-opacity=".4"/><stop offset="1" stop-color="var(--acc2)" stop-opacity="0"/></linearGradient></defs>
+    ${g}${series(2,'var(--acc)','gd')}${series(1,'var(--acc2)','gu')}</svg><div class="tip" id="tip"></div>
+    ${pts.length<2?`<div class="nodata">${esc(T('tr.nodata'))}</div>`:''}`;
+}
+$('chart').addEventListener('mousemove',e=>{
+  if(!chartPts||!chartPts.pts.length)return;
+  const svg=$('csvg'),rc=svg.getBoundingClientRect(),sx=(e.clientX-rc.left)/rc.width*chartPts.W;
+  const t=chartPts.t0+(sx-chartPts.L)/chartPts.pw*chartPts.range;
+  let best=null;for(const p of chartPts.pts)if(!best||Math.abs(p[0]-t)<Math.abs(best[0]-t))best=p;
+  if(!best||Math.abs(best[0]-t)>chartPts.range*.08){$('tip').style.display='none';return}
+  const tip=$('tip');tip.style.display='block';
+  tip.style.left=((chartPts.L+(best[0]-chartPts.t0)/chartPts.range*chartPts.pw)/chartPts.W*rc.width)+'px';tip.style.top='28px';
+  tip.innerHTML=`${new Date(best[0]*1000).toLocaleTimeString(LOCALE[LANG],{hour12:false})} · ↓ ${mbps(best[2])} · ↑ ${mbps(best[1])} Mbps`});
+$('chart').addEventListener('mouseleave',()=>{const t=$('tip');if(t)t.style.display='none'});
+$('range').addEventListener('change',drawChart);
+
+/* ---------- router profiles ---------- */
+let editId=null,lastType=null,delArmed=false;
+const typeInfo=t=>((S&&S.types)||[]).find(x=>x.type===t)||{};
+function openProfile(mode){
+  const first=!(S&&S.profiles&&S.profiles.length);if(first)mode='first';
+  editId=mode==='edit'?(S.config&&S.config.id):null;
+  const c=mode==='edit'?(S.config||{}):{},types=(S&&S.types)||[];
+  $('suType').innerHTML=types.map(t=>`<option value="${esc(t.type)}">${esc(t.label)}</option>`).join('');
+  const ty=c.type||(types[0]&&types[0].type)||'';
+  $('suType').value=ty;lastType=ty;
+  $('suTitle').textContent=T(mode==='edit'?'su.edit':mode==='add'?'su.add':'su.first');
+  $('suName').value=c.name||'';$('suUrl').value=c.url||typeInfo(ty).url||'';$('suUser').value=c.user||typeInfo(ty).user||'';
+  $('suPass').value='';$('suPass').placeholder=mode==='edit'?T('su.keep'):'';$('suErr').textContent='';
+  $('suCancel').hidden=first;$('suDel').hidden=mode!=='edit';delArmed=false;$('suDel').textContent=T('su.delete');
+  if(!$('dProfileOpen')&&!$('dSetup').open)$('dSetup').showModal();
+  setTimeout(()=>(mode==='edit'?$('suPass'):first?$('suType'):$('suName')).focus(),50);
+}
+$('dSetup').addEventListener('cancel',e=>{if(!(S&&S.profiles&&S.profiles.length))e.preventDefault()});
+$('suType').onchange=()=>{const o=typeInfo(lastType),n=typeInfo($('suType').value);
+  if(!$('suUrl').value||$('suUrl').value===o.url)$('suUrl').value=n.url||'';
+  if(!$('suUser').value||$('suUser').value===o.user)$('suUser').value=n.user||'';
+  lastType=$('suType').value};
+$('bEditRouter').onclick=()=>{$('dSettings').close();openProfile('edit')};
+$('bAddRouter').onclick=()=>{$('dSettings').close();openProfile('add')};
+$('suSave').onclick=async()=>{
+  const b=$('suSave');b.disabled=true;b.textContent=T('su.testing');$('suErr').textContent='';
+  try{await post('/api/profile',{id:editId,name:$('suName').value,type:$('suType').value,url:$('suUrl').value,user:$('suUser').value,pass:$('suPass').value});
+    $('dSetup').close();toast(T('toast.connected'));await load(true)}
+  catch(e){$('suErr').textContent=errText(e)}
+  finally{b.disabled=false;b.textContent=T('su.save')}
+};
+$('suDel').onclick=async()=>{
+  if(!delArmed){delArmed=true;$('suDel').textContent=T('su.confirmDelete');return}
+  try{await post('/api/profile/delete',{id:editId});$('dSetup').close();toast(T('toast.deleted'));await load(true)}
+  catch(e){$('suErr').textContent=errText(e)}};
+['suName','suUrl','suUser','suPass'].forEach(id=>$(id).addEventListener('keydown',e=>{if(e.key==='Enter')$('suSave').click()}));
+$('profSel').onchange=async e=>{const v=e.target.value;
+  if(v==='__add'){e.target.value=(S&&S.active)||'';openProfile('add');return}
+  try{await post('/api/profile/switch',{id:v});await load(true)}catch(err){toast(T('toast.fail',{err:errText(err)}))}};
+
+/* ---------- themed dropdowns: the native <select> stays the source of truth (value, change event) ---------- */
+const CHEV='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>';
+let csOpen=null;
+function closeCS(){if(!csOpen)return;csOpen.menu.remove();csOpen.btn.setAttribute('aria-expanded','false');csOpen=null}
+function enhanceSelect(sel){
+  if(sel._cs)return;sel._cs=true;
+  const wrap=document.createElement('div');wrap.className=('cs '+sel.className).trim();
+  const btn=document.createElement('button');btn.type='button';btn.className='cs-btn';btn.setAttribute('aria-haspopup','listbox');btn.setAttribute('aria-expanded','false');
+  btn.innerHTML='<span></span>'+CHEV;
+  sel.parentNode.insertBefore(wrap,sel);wrap.append(btn,sel);sel.classList.add('cs-native');sel.tabIndex=-1;sel.setAttribute('aria-hidden','true');
+  const sync=()=>{const o=sel.selectedOptions[0];btn.firstChild.textContent=o?o.textContent:'';wrap.hidden=sel.hidden;btn.disabled=sel.disabled;const l=sel.getAttribute('aria-label');if(l)btn.setAttribute('aria-label',l)};
+  const d=Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value');
+  Object.defineProperty(sel,'value',{get(){return d.get.call(this)},set(v){d.set.call(this,v);sync()},configurable:true});
+  new MutationObserver(sync).observe(sel,{childList:true,subtree:true,characterData:true,attributes:true,attributeFilter:['hidden','disabled','aria-label']});
+  sel.addEventListener('change',sync);sync();
+  const choose=v=>{if(d.get.call(sel)!==v){d.set.call(sel,v);sync();sel.dispatchEvent(new Event('change',{bubbles:true}))}};
+  const open=()=>{
+    if(csOpen&&csOpen.btn===btn){closeCS();return}
+    closeCS();hideMenu();closeTP();
+    const opts=[...sel.options],menu=document.createElement('div');menu.className='cs-menu';menu.setAttribute('role','listbox');
+    let cur=Math.max(0,sel.selectedIndex);
+    const draw=()=>{menu.innerHTML=opts.map((o,i)=>`<div class="cs-opt${i===cur?' hi':''}${o.selected?' sel':''}" role="option" data-i="${i}">${esc(o.textContent)}<b>✓</b></div>`).join('');
+      const h=menu.querySelector('.hi');if(h)h.scrollIntoView({block:'nearest'})};
+    draw();(sel.closest('dialog')||document.body).appendChild(menu);   // inside the dialog, or it would sit behind it
+    const r=btn.getBoundingClientRect();menu.style.minWidth=r.width+'px';
+    const h=menu.offsetHeight,w=menu.offsetWidth;
+    menu.style.left=Math.max(8,Math.min(innerWidth-w-8,r.left))+'px';
+    menu.style.top=(r.bottom+4+h>innerHeight?Math.max(8,r.top-h-4):r.bottom+4)+'px';
+    btn.setAttribute('aria-expanded','true');csOpen={menu,btn,at:Date.now(),
+      move:n=>{cur=(cur+n+opts.length)%opts.length;draw()},pick:()=>{closeCS();choose(opts[cur].value)}};
+    menu.addEventListener('click',e=>{const o=e.target.closest('.cs-opt');if(o){e.stopPropagation();cur=+o.dataset.i;csOpen.pick();btn.focus()}});
+    menu.addEventListener('mousemove',e=>{const o=e.target.closest('.cs-opt');if(o&&+o.dataset.i!==cur){menu.querySelector('.hi')?.classList.remove('hi');cur=+o.dataset.i;o.classList.add('hi')}});
+  };
+  btn.addEventListener('click',e=>{e.stopPropagation();open()});
+  btn.addEventListener('keydown',e=>{
+    if(csOpen&&csOpen.btn===btn){
+      if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();csOpen.move(e.key==='ArrowDown'?1:-1)}
+      else if(e.key==='Enter'||e.key===' '){e.preventDefault();csOpen.pick()}
+      else if(e.key==='Tab')closeCS();
+    }else if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();open()}
+  });
+}
+document.addEventListener('click',closeCS);
+addEventListener('resize',closeCS);
+addEventListener('scroll',e=>{if(csOpen&&Date.now()-csOpen.at>400&&!csOpen.menu.contains(e.target))closeCS()},true);
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&csOpen){e.preventDefault();e.stopPropagation();closeCS()}},true);  // closes the list, not the dialog behind it
+
+/* ---------- data ---------- */
+async function load(force){
+  try{
+    const r=await fetch('/api/state'+(force?'?force=1':''));const j=await r.json();
+    if(!r.ok)throw new Error(j.error||r.status);
+    S=j;lastErr=null;loadedAt=Date.now();
+  }catch(e){lastErr=e.code?{code:e.code,args:e.args,message:e.message}:{code:'server'}}
+  render();
+  if(S&&!(S.profiles&&S.profiles.length)&&!$('dSetup').open)openProfile('first');
+}
+function schedule(){clearInterval(timer);timer=setInterval(()=>{if(!document.hidden)load()},refreshSec*1000)}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&Date.now()-loadedAt>5000)load()});
+
+/* ---------- interaction ---------- */
+document.addEventListener('click',async e=>{
+  const t=e.target;
+  const sw=t.closest('[data-switch]');if(sw){try{await post('/api/profile/switch',{id:sw.dataset.switch});await load(true)}catch(err){toast(T('toast.fail',{err:errText(err)}))}return}
+  const cp=t.closest('.copy');if(cp&&cp.dataset.ip){doCopy(cp.dataset.ip,T('toast.ipCopied'));return}
+  const f=t.closest('[data-f]');if(f){filter=f.dataset.f;render();return}
+  const mn=t.closest('[data-menu]');
+  if(mn){menuFor===mn.dataset.menu?hideMenu():showMenu(mn.dataset.menu,mn);return}
+  const act=t.closest('[data-act]');
+  if(act){const d=(S.clients||[]).find(c=>c.mac===act.dataset.mac);hideMenu();
+    if(act.dataset.act==='ip'&&d)doCopy(d.ip,T('toast.ipCopied'));
+    if(act.dataset.act==='mac'&&d)doCopy(d.mac,T('toast.macCopied'));
+    if(act.dataset.act==='alias'&&d){$('aMac').textContent=d.mac;$('aName').value=d.alias||'';$('dAlias').showModal();$('aName').focus()}
+    return}
+  if(menuFor&&!t.closest('.menu'))hideMenu();
+  if(t.closest('[data-close]')){t.closest('dialog').close()}
+});
+document.addEventListener('input',e=>{if(e.target.id==='q'){query=e.target.value;const p=e.target.selectionStart;render();const q=$('q');q.focus();q.setSelectionRange(p,p)}});
+$('aSave').onclick=async()=>{try{await post('/api/alias',{mac:$('aMac').textContent,name:$('aName').value});$('dAlias').close();toast(T('toast.nameSaved'));load()}catch(e){toast(T('toast.fail',{err:errText(e)}))}};
+$('aName').addEventListener('keydown',e=>{if(e.key==='Enter')$('aSave').click()});
+$('bRefresh').onclick=async()=>{
+  toast(T('toast.refreshing'));const t0=S&&S.ts;await load(true);
+  for(let i=0;i<10&&S&&S.ts===t0&&!(S.paused>0);i++){await new Promise(r=>setTimeout(r,1500));await load()}
+  toast(T('toast.refreshed'))};
+$('setPause').onchange=async e=>{const m=e.target.value;if(m==='')return;
+  try{await post('/api/pause',{minutes:+m});toast(+m?T('toast.paused',{n:m}):T('toast.resumed'));e.target.value='';load()}catch(err){toast(T('toast.fail',{err:errText(err)}))}};
+$('bRestart').onclick=()=>$('dRestart').showModal();
+$('goRestart').onclick=async()=>{$('dRestart').close();try{toast(T('toast.restarting'));await post('/api/restart');toast(T('toast.restartSent'));setTimeout(()=>load(),1500)}catch(e){toast(T('toast.fail',{err:errText(e)}))}};
+function fillThemes(){for(const [id,k,key] of [['setDark','dark','themeDark'],['setLight','light','themeLight']]){
+  const sel=$(id);sel.innerHTML=THEMES[k].map(t=>`<option>${esc(t[0])}</option>`).join('');sel.value=store.get(key,THEMES[k][0][0])}}
+const REFRESH=[1,2,5,15,30,60],PAUSE=[5,15,30];
+function fillSettings(){
+  $('setLang').innerHTML=Object.entries(LANGS).map(([k,v])=>`<option value="${k}">${esc(v)}</option>`).join('');$('setLang').value=LANG;
+  $('setRefresh').innerHTML=REFRESH.map(n=>`<option value="${n}">${esc(T('sec',{n}))}</option>`).join('');$('setRefresh').value=String(refreshSec);
+  $('setTheme').innerHTML=['auto','dark','light'].map(m=>`<option value="${m}">${esc(T('mode.'+m))}</option>`).join('');$('setTheme').value=store.get('theme','auto');
+  $('setPause').innerHTML=`<option value="">${esc(T('pause.pick'))}</option>`+PAUSE.map(n=>`<option value="${n}">${esc(T('pause.n',{n}))}</option>`).join('')+`<option value="0">${esc(T('pause.resume'))}</option>`;
+  fillThemes()}
+$('bSettings').onclick=()=>{fillSettings();$('dSettings').showModal()};
+$('setLang').onchange=e=>{LANG=I18N[e.target.value]?e.target.value:'en';store.set('lang',LANG);applyLang();fillSettings()};
+$('setRefresh').onchange=e=>{refreshSec=+e.target.value;store.set('refresh',refreshSec);schedule()};
+$('setTheme').onchange=e=>{store.set('theme',e.target.value);applyTheme()};
+$('setDark').onchange=e=>{store.set('themeDark',e.target.value);applyTheme()};
+$('setLight').onchange=e=>{store.set('themeLight',e.target.value);applyTheme()};
+async function saveSchedule(enabled,time){
+  try{const s=await post('/api/schedule',{enabled,time});S.schedule=s;render();toast(s.enabled?T('toast.schOn',{time:s.time}):T('toast.schOff'))}catch(e){toast(T('toast.fail',{err:errText(e)}))}}
+$('schSw').onclick=()=>saveSchedule(!$('schSw').classList.contains('on'),$('schTime').dataset.value);
+/* time picker: hour grid + minute grid, applied with "Set" (the browser's own picker ignores the theme) */
+function setSchTime(v){$('schTime').dataset.value=v;$('schTimeT').textContent=v}
+let tpH=3,tpM=0,tpAt=0;
+const pad2=n=>String(n).padStart(2,'0');
+function drawTP(){
+  const mins=[...Array(12)].map((_,i)=>i*5);if(!mins.includes(tpM))mins.push(tpM);mins.sort((a,b)=>a-b);
+  const grid=(vals,cur,k)=>`<div class="g">${vals.map(v=>`<button type="button" data-tp="${k}" data-v="${v}" class="${v===cur?'on':''}">${pad2(v)}</button>`).join('')}</div>`;
+  $('tp').innerHTML=`<h4>${esc(T('tp.hour'))}</h4>${grid([...Array(24).keys()],tpH,'h')}<h4>${esc(T('tp.min'))}</h4>${grid(mins,tpM,'m')}
+    <div class="act"><span class="now">${pad2(tpH)}:${pad2(tpM)}</span><span><button type="button" class="btn" data-tp="x">${esc(T('b.cancel'))}</button> <button type="button" class="btn pri" data-tp="ok">${esc(T('tp.set'))}</button></span></div>`}
+function openTP(){
+  const [h,m]=($('schTime').dataset.value||'03:00').split(':').map(Number);tpH=h;tpM=m;drawTP();
+  const tp=$('tp');tp.hidden=false;tpAt=Date.now();const r=$('schTime').getBoundingClientRect(),w=tp.offsetWidth,hh=tp.offsetHeight;
+  tp.style.left=Math.max(8,Math.min(innerWidth-w-8,r.right-w))+'px';
+  tp.style.top=(r.bottom+6+hh>innerHeight?Math.max(8,r.top-hh-6):r.bottom+6)+'px'}
+function closeTP(){$('tp').hidden=true}
+$('schTime').onclick=e=>{e.stopPropagation();$('tp').hidden?openTP():closeTP()};
+$('tp').addEventListener('click',e=>{
+  e.stopPropagation();const b=e.target.closest('[data-tp]');if(!b)return;const k=b.dataset.tp;
+  if(k==='h'){tpH=+b.dataset.v;drawTP()}else if(k==='m'){tpM=+b.dataset.v;drawTP()}
+  else if(k==='x')closeTP();
+  else if(k==='ok'){closeTP();saveSchedule($('schSw').classList.contains('on'),pad2(tpH)+':'+pad2(tpM))}});
+document.addEventListener('click',()=>{if(!$('tp').hidden)closeTP()});
+addEventListener('resize',closeTP);addEventListener('scroll',e=>{if(!$('tp').hidden&&Date.now()-tpAt>400&&!$('tp').contains(e.target))closeTP()},true);
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeTP()});
+function tickClock(){const d=new Date(),loc=LOCALE[LANG];$('date').textContent=d.toLocaleDateString(loc,{weekday:'short',day:'numeric',month:'short',year:'numeric'});
+  $('time').textContent=d.toLocaleTimeString(loc,{hour:'2-digit',minute:'2-digit',hour12:false}).replace('.',':');tickUptime()}
+function lastText(l){
+  const when=new Date(l.time*1000).toLocaleString(LOCALE[LANG],{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit',hour12:false});
+  const body=T('res.'+l.result,{secs:l.secs||0,error:errText({code:l.code,message:l.error})});
+  return T('sch.last',{when,src:T('src.'+l.source),body})}
+function fillRange(){const sel=$('range'),v=sel.value||'30';sel.innerHTML=[5,15,30,60].map(n=>`<option value="${n}">${esc(T('tr.range',{n}))}</option>`).join('');sel.value=v}
+function applyLang(){
+  document.documentElement.lang=LANG;document.title=T('app.title');
+  document.querySelectorAll('[data-i18n]').forEach(e=>e.textContent=T(e.dataset.i18n));
+  document.querySelectorAll('[data-i18n-attr]').forEach(e=>e.dataset.i18nAttr.split(';').forEach(p=>{const [a,k]=p.split(':');e.setAttribute(a,T(k))}));
+  fillRange();if(!S)$('pillT').textContent=T('st.loading');
+  tickClock();render()}
+document.querySelectorAll('select').forEach(enhanceSelect);
+applyLang();setInterval(tickClock,1000);setInterval(loadTraffic,1000);schedule();load();
+</script>
+</body>
+</html>

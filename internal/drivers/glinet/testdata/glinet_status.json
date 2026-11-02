@@ -1,0 +1,93 @@
+{
+ "result": {
+  "network": [
+   {
+    "interface": "wwan6",
+    "up": false,
+    "online": true
+   },
+   {
+    "interface": "tethering6",
+    "up": false,
+    "online": true
+   },
+   {
+    "interface": "wwan",
+    "up": false,
+    "online": true
+   },
+   {
+    "interface": "tethering",
+    "up": false,
+    "online": true
+   },
+   {
+    "interface": "wan",
+    "up": true,
+    "online": true
+   },
+   {
+    "interface": "wan6",
+    "up": false,
+    "online": true
+   }
+  ],
+  "system": {
+   "memory_buff_cache": 107069440,
+   "memory_free": 121495552,
+   "uptime": 2365.42,
+   "memory_total": 505085952,
+   "mode": 0,
+   "flash_total": 268435456,
+   "flash_app": 8146944,
+   "flash_free": 140738560,
+   "tzoffset": "+0700",
+   "cpu": {
+    "temperature": 65
+   },
+   "load_average": [
+    0.09,
+    0.06,
+    0.09
+   ]
+  },
+  "wifi": [
+   {
+    "ssid": "Office",
+    "band": "2G",
+    "guest": false,
+    "up": true
+   },
+   {
+    "ssid": "Office_5G",
+    "band": "5G",
+    "guest": false,
+    "up": true
+   },
+   {
+    "ssid": "Office-Guest",
+    "band": "2G",
+    "guest": true,
+    "up": true
+   },
+   {
+    "ssid": "Office-Guest",
+    "band": "5G",
+    "guest": true,
+    "up": true
+   },
+   {
+    "ssid": "Office",
+    "band": "2G",
+    "guest": false,
+    "up": false
+   },
+   {
+    "ssid": "Office_5G",
+    "band": "5G",
+    "guest": false,
+    "up": false
+   }
+  ]
+ }
+}

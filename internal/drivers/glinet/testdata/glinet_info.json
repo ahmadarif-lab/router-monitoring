@@ -1,0 +1,10 @@
+{
+ "result": {
+  "vendor": "GL.iNet",
+  "firmware_version": "4.9.0-op24",
+  "board_info": {
+   "model": "GL.iNet GL-MT3000",
+   "hostname": "GL-DEMO"
+  }
+ }
+}
