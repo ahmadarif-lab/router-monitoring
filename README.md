@@ -36,15 +36,30 @@ GL.iNet models should work but are untested. New routers are added as small "dri
 
 ## Install
 
-Download the binary for your system from the Releases page (or build it, see below) and run it:
+Download the archive for your system from the [Releases](../../releases) page, unpack it and run the binary:
+
+| System | Archive |
+|---|---|
+| macOS, Apple Silicon (M1 and later) | `router-monitoring_<version>_darwin_arm64.tar.gz` |
+| macOS, Intel | `router-monitoring_<version>_darwin_amd64.tar.gz` |
+| Linux, x86-64 / ARM64 | `router-monitoring_<version>_linux_amd64.tar.gz` / `..._linux_arm64.tar.gz` |
+| Windows, x86-64 | `router-monitoring_<version>_windows_amd64.zip` |
 
 ```sh
+tar -xzf router-monitoring_*_darwin_arm64.tar.gz && cd router-monitoring_*_darwin_arm64
 ./router-monitoring
 # -> http://127.0.0.1:8787
 ```
 
 Open that address. On first run a dialog asks for the router type, its address and the admin login. The login is
-tested before it is saved. Add more routers later from the header selector or from Settings.
+tested before it is saved. Add more routers later from the header selector or from Settings. Every release has a
+`SHA256SUMS` file to verify the download.
+
+The binaries are not code-signed, so the first launch needs one extra step:
+
+- **macOS** blocks files downloaded with a browser. Remove the quarantine flag once:
+  `xattr -d com.apple.quarantine ./router-monitoring` (downloading with `curl` does not set it).
+- **Windows** SmartScreen may warn: choose "More info", then "Run anyway".
 
 ### Build from source
 
